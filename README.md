@@ -4,7 +4,7 @@ Quattro dataviz interattive (HTML + D3 v7) nello stile Radar. Ogni numero viene 
 
 | Pagina | Contenuto | Dati |
 |---|---|---|
-| `mappa-usa/` | Dazi Usa proposti il 25 novembre 2026 su 14 economie (cartogramma a tessere) | `data/ustr-dazi-proposti-2026-11-25.csv` |
+| `mappa-usa/` | Dazi Usa proposti il 25 novembre 2026 su 14 economie (mappa geografica; geometrie world-atlas caricate da CDN) | `data/ustr-dazi-proposti-2026-11-25.csv` |
 | `dazi-bev/` | Dazi compensativi Ue sulle auto elettriche cinesi | `data/dazi-bev-ue.csv` |
 | `pacchi/` | Calendario delle misure sui piccoli pacchi (Ue e Usa) | `data/pacchi-calendario.csv` |
 | `ue-cina/` | Commercio Ue con i principali partner, terzo trimestre 2026 | `data/eurostat-q3-2026-partner.csv` |
@@ -14,6 +14,6 @@ Ustr (comunicato 25 novembre 2026; avvisi Ue e Cina); Commissione europea (reg. 
 
 ## Limiti
 - Mancano dati ufficiali sulle importazioni di auto per alimentazione.
-- Le tessere della mappa non sono in scala geografica.
+- I confini vengono da world-atlas (Natural Earth, 110m): Singapore è un cerchio; la vista «Europa e Asia» è un ritaglio.
 - Il saldo Ue-Cina nel grafico è calcolato da Radar (importazioni meno esportazioni).
 - Per le economie diverse da Ue e Cina la mappa riporta solo la proposta base e l'eventuale aliquota con accordo (comunicato Ustr).

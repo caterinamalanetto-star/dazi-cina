@@ -16,6 +16,7 @@
   .tile text { font-family: var(--sans); pointer-events: none; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
 <script src="../assets/radar.js"></script>
 </head>
 <body>
@@ -31,6 +32,10 @@
   </div>
 
   <figure class="r-chart" id="chart">
+    <div class="r-toggle" role="group" aria-label="Scegli la zona">
+      <button type="button" data-k="reg" aria-pressed="true">Europa e Asia</button>
+      <button type="button" data-k="world" aria-pressed="false">Mondo</button>
+    </div>
   </figure>
   <p class="r-note" id="nota"></p>
 
@@ -43,79 +48,108 @@
 <script>
 (function () {
   var R = Radar, fmt = R.fmt, f0 = function (v) { return fmt(v, 0); };
-  var NOTE = "Tessere disposte in modo approssimato secondo la geografia, non in scala. Il valore è la proposta base, «al netto» dei dazi già in vigore (Section 301 e, per Ue, Giappone, Corea, Svizzera e Taiwan, anche Mfn): non si somma. Per Ue e Cina l'avviso indica anche un tetto più alto se le consultazioni risultano insoddisfacenti (20% e 40%). Per Messico e Norvegia non sono state prese determinazioni.";
-  R.loadCSV("../data/ustr-dazi-proposti-2026-11-25.csv").then(function (rows) {
+  var EU = [40,56,100,191,196,203,208,233,246,250,276,300,348,372,380,428,440,442,470,528,616,620,642,703,705,724,752];
+  var IDS = { UE: EU, CH: [756], IN: [356], BD: [50], CN: [156], KR: [410], JP: [392], TW: [158], TH: [764], VN: [704], MY: [458], KH: [116], ID: [360] };
+  var NODET = { 484: "Messico", 578: "Norvegia" };
+  var NOTE = "Colore = proposta base degli Usa. È «al netto» dei dazi già in vigore (Section 301 e, per Ue, Giappone, Corea, Svizzera e Taiwan, anche Mfn): non si somma. Per Ue e Cina l'avviso indica anche un tetto più alto se le consultazioni risultano insoddisfacenti (20% e 40%). Per Messico e Norvegia non sono state prese determinazioni. Singapore è indicata con un cerchio.";
+  var EXT = {
+    reg: [[-12,-12],[150,-12],[150,62],[-12,62],[69,0],[69,62],[69,-12]],
+    world: [[-170,-56],[180,-56],[180,83],[-170,83],[0,0],[-170,0],[180,0],[0,83]]
+  };
+  Promise.all([
+    R.loadCSV("../data/ustr-dazi-proposti-2026-11-25.csv"),
+    d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+  ]).then(function (res) {
+    var rows = res[0], topo = res[1];
     var data = rows.map(function (r) {
       var base = R.num(r["Proposta base (%)"]), fbv = R.num(r["Se le consultazioni falliscono (%)"]), deal = R.num(r["Con accordo (%)"]);
-      return { k: r["Economia"], s: r["Sigla"], c: +r["Col"], r: +r["Riga"], base: base, deal: isNaN(deal) ? null : deal,
-        fb: isNaN(fbv) ? null : fbv, nota: r["Nota"] };
+      return { k: r["Economia"], s: r["Sigla"], base: base, deal: isNaN(deal) ? null : deal, fb: isNaN(fbv) ? null : fbv, nota: r["Nota"] };
     });
-    var cn = data.filter(function (d) { return d.s === "CN"; })[0], eu = data.filter(function (d) { return d.s === "UE"; })[0];
+    var by = {}; data.forEach(function (d) { by[d.s] = d; });
+    var cn = by.CN, eu = by.UE, sg = by.SG;
+    var idMap = {};
+    Object.keys(IDS).forEach(function (sg2) { IDS[sg2].forEach(function (id) { idMap[id] = by[sg2]; }); });
+
+    var feats = topojson.feature(topo, topo.objects.countries).features.filter(function (f) { return +f.id !== 10; });
+    feats.forEach(function (f) {
+      if (+f.id === 250 && f.geometry.type === "MultiPolygon") {
+        f.geometry.coordinates = f.geometry.coordinates.filter(function (p) { return d3.geoCentroid({ type: "Polygon", coordinates: p })[0] > -10; });
+      }
+    });
+
     var bigNum = d3.select("#big-num");
     d3.select("#big-label").text("è il massimo che Washington valuta per la Cina se il dialogo fallisce; la proposta base è " + f0(cn.base) + "%. Per l'Ue " + f0(eu.base) + "% (20% nel caso peggiore)");
     if (R.reduced) bigNum.text(f0(cn.fb) + "%");
     else { bigNum.text("0%"); R.onFirstView(document.getElementById("big"), function () { R.countUp(bigNum, cn.fb, function (v) { return f0(v) + "%"; }, "play"); }); }
 
-    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {}, lastW = 0;
+    var view = "reg", lastW = 0;
+    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {};
     R.dismissOutside(host, function () { tip.hide(); clear(); });
-    R.responsive(host, function (W, phase) { lastW = W; draw(W, phase); });
+    d3.selectAll(".r-toggle button").on("click", function () {
+      view = this.getAttribute("data-k");
+      d3.selectAll(".r-toggle button").attr("aria-pressed", function () { return this.getAttribute("data-k") === view ? "true" : "false"; });
+      tip.hide(); draw(lastW, "static");
+    });
+
+    var colr = d3.scaleThreshold().domain([16, 19, 21, 26]).range(["var(--blue-5)", "var(--blue-4)", "var(--blue-3)", "var(--blue-2)", "var(--blue-1)"]);
+    var fill = function (v) { return v >= 30 ? "var(--red)" : colr(v); };
 
     function draw(W, phase) {
-      var narrow = R.isNarrow(W);
       d3.select("#nota").text(NOTE);
-      var cols = 7, rowsN = 5, gap = narrow ? 4 : 6;
-      var size = Math.floor((W - gap * (cols - 1)) / cols);
-      var H = rowsN * size + (rowsN - 1) * gap;
-      var val = function (d) { return d.base; };
-      var nd = function () { return false; };
-      var colr = d3.scaleThreshold().domain([16, 19, 21, 26]).range(["var(--blue-5)", "var(--blue-4)", "var(--blue-3)", "var(--blue-2)", "var(--blue-1)"]);
-      var fill = function (d) { return val(d) >= 35 ? "var(--red)" : colr(val(d)); };
-      var light = function (d) { var v = val(d); return v < 19 || nd(d); };
-
+      var narrow = R.isNarrow(W);
+      var ext = { type: "MultiPoint", coordinates: EXT[view] };
+      var proj = d3.geoNaturalEarth1().fitWidth(W, ext);
+      var path = d3.geoPath(proj);
+      var MH = Math.ceil(path.bounds(ext)[1][1]) + 2, H = MH + (narrow ? 50 : 30);
       d3.select(host).select("svg").remove();
-      var top = data.slice().sort(function (a, b) { return val(b) - val(a); })[0];
-      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
-        .attr("aria-label", "Cartogramma a tessere dei dazi Usa proposti su 14 economie. " + "Proposta base. " +
-          "Il valore più alto è " + top.k + " con " + f0(val(top)) + "%. Unione europea: " + f0(val(eu)) + "%; Cina: " + f0(val(cn)) + "%.");
-      svg.append("title").text("Dazi Usa proposti il 25 novembre 2026");
-      var xs = function (c) { return c * (size + gap); }, ys = function (r) { return r * (size + gap); };
+      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).style("overflow", "hidden").attr("role", "img")
+        .attr("aria-label", "Mappa dei dazi Usa proposti il 25 novembre 2026. Cina " + f0(cn.base) + "% (fino a " + f0(cn.fb) + "%), Unione europea " + f0(eu.base) + "%, Vietnam " + f0(by.VN.base) + "%, India " + f0(by.IN.base) + "%.");
+      svg.append("title").text("Dazi Usa proposti su 14 economie");
       var g = svg.append("g");
-      var tiles = g.selectAll("g.tile").data(data).join("g").attr("class", "tile mark")
-        .attr("transform", function (d) { return "translate(" + xs(d.c) + "," + ys(d.r) + ")"; });
-      tiles.append("rect").attr("width", size).attr("height", size).attr("rx", 4)
-        .style("fill", function (d) { return nd(d) ? "var(--grey-5)" : fill(d); })
-        .style("stroke", function (d) { return d === cn ? "var(--ink)" : "none"; }).style("stroke-width", 1.5);
-      tiles.append("text").attr("x", size / 2).attr("y", size * 0.40).attr("text-anchor", "middle")
-        .style("font-size", (narrow ? 10 : 12) + "px").style("font-weight", 600)
-        .style("fill", function (d) { return light(d) ? "var(--ink)" : "#fff"; })
-        .text(function (d) { return d.s; });
-      var vt = tiles.append("text").attr("x", size / 2).attr("y", size * 0.76).attr("text-anchor", "middle")
-        .style("font-size", (narrow ? 14 : 20) + "px").style("font-weight", 700)
-        .style("fill", function (d) { return light(d) ? "var(--ink)" : "#fff"; }).style("font-variant-numeric", "tabular-nums");
-      vt.each(function (d) { d3.select(this).text(f0(val(d)) + "%"); });
-      R.enter(tiles, phase, function (s) { s.style("opacity", 0); },
-        function (s) { s.transition().duration(600).delay(function (d, i) { return i * 35; }).style("opacity", 1); });
+      var paths = g.selectAll("path.c").data(feats).join("path").attr("class", "c mark").attr("d", path)
+        .style("fill", function (f) { var d = idMap[+f.id]; return d ? fill(d.base) : (NODET[+f.id] ? "var(--grey-4)" : "var(--grey-5)"); })
+        .style("stroke", "var(--bg)").style("stroke-width", 0.5);
+      var sgc = proj([103.82, 1.35]);
+      var dot = g.append("circle").attr("class", "mark").attr("cx", sgc[0]).attr("cy", sgc[1]).attr("r", narrow ? 3.5 : 5)
+        .style("fill", fill(sg.base)).style("stroke", "var(--ink)").style("stroke-width", 1);
+      R.enter(g.selectAll(".mark"), phase, function (s) { s.style("opacity", 0); }, function (s) { s.transition().duration(600).style("opacity", 1); });
+      // cina evidenziata
+      g.selectAll("path.cn").data(feats.filter(function (f) { return +f.id === 156; })).join("path").attr("class", "cn").attr("d", path)
+        .style("fill", "none").style("stroke", "var(--ink)").style("stroke-width", 1.4).style("pointer-events", "none");
 
-      // legenda: etichetta diretta per la Cina
-      var lab = g.append("text").attr("class", "annot").attr("x", xs(1) + 2).attr("y", ys(3) + 14)
-        .style("font-size", "12px").style("fill", "var(--ink-2)");
-      lab.append("tspan").attr("x", xs(0)).attr("dy", 0).text("Riquadro: Cina.");
-      lab.append("tspan").attr("x", xs(0)).attr("dy", 15).text("Rosso: oltre il 30%.");
+      function show(ev, d, name, pt) {
+        var rowsT = [];
+        if (d.deal != null) rowsT.push(["Con accordo commerciale", f0(d.deal) + "%"]);
+        if (d.fb != null) rowsT.push(["Se le consultazioni falliscono", f0(d.fb) + "%"]);
+        tip.show(R.tipHTML({ title: name, value: f0(d.base) + "%", unit: "proposta base", rows: rowsT, note: d.nota }),
+          Math.min(Math.max(pt[0], 60), W - 20), Math.min(pt[1], MH - 10));
+      }
+      clear = function () { paths.classed("is-dimmed", false); };
+      paths.on("pointerenter pointerdown", function (ev, f) {
+        var d = idMap[+f.id], c = path.centroid(f);
+        if (!d) {
+          if (NODET[+f.id]) { paths.classed("is-dimmed", function (q) { return q !== f; }); tip.show(R.tipHTML({ title: NODET[+f.id], value: "nessuna determinazione", note: "L'Ustr non ha preso determinazioni su questo Paese." }), Math.min(Math.max(c[0], 60), W - 20), Math.min(c[1], MH - 10)); }
+          else { tip.hide(); clear(); }
+          return;
+        }
+        paths.classed("is-dimmed", function (q) { var dq = idMap[+q.id]; return dq !== d; });
+        show(ev, d, d.k, c);
+      }).on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
+      dot.on("pointerenter pointerdown", function (ev) { show(ev, sg, sg.k, [sgc[0], sgc[1]]); }).on("pointerleave", function (ev) { if (ev.pointerType === "mouse") tip.hide(); });
 
-      clear = function () { tiles.classed("is-dimmed", false); };
-      g.selectAll("rect.hit").data(data).join("rect").attr("class", "hit")
-        .attr("x", function (d) { return xs(d.c); }).attr("y", function (d) { return ys(d.r); }).attr("width", size).attr("height", size)
-        .on("pointerenter pointerdown", function (ev, d) {
-          tiles.classed("is-dimmed", function (q) { return q !== d; });
-          var rowsT = [["Proposta base", f0(d.base) + "%"]];
-          if (d.deal != null) rowsT.push(["Con accordo commerciale", f0(d.deal) + "%"]);
-          if (d.fb != null) rowsT.push(["Se le consultazioni falliscono", f0(d.fb) + "%"]);
-          tip.show(R.tipHTML({ title: d.k, value: f0(val(d)) + "%", unit: "proposta base", rows: rowsT, note: d.nota }),
-            Math.min(xs(d.c) + size, W - 20), ys(d.r) + size / 2);
-        })
-        .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
+      // legenda
+      var keys = [["15%", "var(--blue-5)"], ["18%", "var(--blue-4)"], ["20%", "var(--blue-3)"], ["25%", "var(--blue-2)"], ["35%", "var(--red)"]];
+      var lg = svg.append("g").attr("transform", "translate(8," + (MH + 20) + ")");
+      keys.forEach(function (k, i) {
+        lg.append("rect").attr("x", i * 44).attr("y", -10).attr("width", 12).attr("height", 12).attr("rx", 2).style("fill", k[1]);
+        lg.append("text").attr("x", i * 44 + 16).attr("y", 0).style("font-size", "11px").style("fill", "var(--ink-2)").style("font-family", "var(--sans)").text(k[0]);
+      });
+      var gx = narrow ? 0 : 5 * 44 + 4, gy = narrow ? 18 : 0;
+      lg.append("rect").attr("x", gx).attr("y", gy - 10).attr("width", 12).attr("height", 12).attr("rx", 2).style("fill", "var(--grey-4)");
+      lg.append("text").attr("x", gx + 16).attr("y", gy).style("font-size", "11px").style("fill", "var(--ink-2)").style("font-family", "var(--sans)").text("nessuna determinazione");
       R.scheduleHeight();
     }
+    R.responsive(host, function (W, phase) { lastW = W; draw(W, phase); });
   }).catch(function (e) { R.fail("#chart", e); });
 })();
 </script>
