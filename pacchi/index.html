@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pacchi dalla Cina, il calendario dei dazi – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .r-toggle { display: inline-flex; flex-wrap: wrap; gap: 0; margin: 4px 0 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+  .r-toggle button { font: 500 13px/1 var(--sans); color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .r-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .r-toggle button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tile text { font-family: var(--sans); pointer-events: none; }
+  .tl { list-style: none; margin: 8px 0 0; padding: 0 0 0 22px; position: relative; }
+  .tl::before { content: ""; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--rule); }
+  .tl li { position: relative; padding: 0 0 20px; }
+  .tl li::before { content: ""; position: absolute; left: -22px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--blue); border: 2px solid var(--bg); box-sizing: border-box; }
+  .tl li.inc::before { background: var(--bg); border: 2px solid var(--grey); }
+  .tl .d { font: 700 13px/1.2 var(--sans); color: var(--blue); font-variant-numeric: tabular-nums; }
+  .tl .a { font: 600 12px/1 var(--sans); color: var(--ink-2); margin-left: 8px; text-transform: uppercase; letter-spacing: .04em; }
+  .tl .e { margin: 4px 0 0; font: 400 15px/1.35 var(--sans); color: var(--ink); }
+  .tl .s { display: inline-block; margin-top: 4px; font: 500 12px/1 var(--sans); color: var(--red); }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Pacchi dalla Cina: il calendario delle nuove tasse</h1>
+    <p class="r-sub">Calendario delle misure su piccole spedizioni extra Ue e Usa nel 2026-2027. In grigio la data ancora da confermare.</p>
+  </header>
+  <figure class="r-chart" id="chart"><ol class="tl" id="tl"></ol></figure>
+  <p class="r-note">Il dazio Ue di 3 euro si applica per articolo, non per pacco, ai prodotti in pacchi di valore inferiore a 150 euro. Per il contributo italiano la data di avvio è slittata più volte e l'ultima non è confermata da fonti istituzionali consultate.</p>
+  <footer class="r-foot">
+    <span>Fonte: Consiglio Ue, regolamenti 2026/382 e 2026/1200; Commissione europea, reg. delegato 2026/2152; Cbp, decisioni 26-12 e 26-13; legge 199/2025</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+<script>
+(function () {
+  var R = Radar, MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+  R.loadCSV("../data/pacchi-calendario.csv").then(function (rows) {
+    var ol = document.getElementById("tl");
+    rows.forEach(function (r) {
+      var p = r["Data"].split("-"), d = +p[2] + " " + MESI[+p[1] - 1] + " " + p[0], inc = r["Stato"] === "Incerto";
+      var li = document.createElement("li"); if (inc) li.className = "inc";
+      var a = document.createElement("div"), s1 = document.createElement("span"), s2 = document.createElement("span");
+      s1.className = "d"; s1.textContent = d; s2.className = "a"; s2.textContent = r["Area"]; a.appendChild(s1); a.appendChild(s2);
+      var e = document.createElement("p"); e.className = "e"; e.textContent = r["Evento"];
+      li.appendChild(a); li.appendChild(e);
+      if (inc) { var t = document.createElement("span"); t.className = "s"; t.textContent = "Da confermare"; li.appendChild(t); }
+      ol.appendChild(li);
+    });
+    R.scheduleHeight();
+  }).catch(function (e) { R.fail("#chart", e); });
+})();
+</script>
+</body>
+</html>

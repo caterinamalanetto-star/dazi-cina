@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dazi Ue sulle auto elettriche cinesi – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .r-toggle { display: inline-flex; flex-wrap: wrap; gap: 0; margin: 4px 0 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+  .r-toggle button { font: 500 13px/1 var(--sans); color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .r-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .r-toggle button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tile text { font-family: var(--sans); pointer-events: none; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Auto elettriche cinesi, dal 7,8% di Tesla al 35,3% di Saic</h1>
+    <p class="r-sub">Dazi compensativi definitivi dell'Unione europea sulle auto elettriche a batteria importate dalla Cina, per produttore. Valori in %, in vigore dal 30 ottobre 2024 per cinque anni.</p>
+  </header>
+  <figure class="r-chart" id="chart"></figure>
+  <p class="r-note">Dazi aggiuntivi al dazio ordinario del 10% applicato alle auto. Alcuni produttori hanno proposto impegni sui prezzi, valutati caso per caso dalla Commissione (per esempio la decisione 2026/328 su Volkswagen Anhui): per queste vetture il dazio può non essere applicato.</p>
+  <footer class="r-foot">
+    <span>Fonte: Commissione europea, regolamento di esecuzione (Ue) 2024/2754; Access2Markets</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+<script>
+(function () {
+  var R = Radar, f1 = function (v) { return R.fmt(v, 1); };
+  R.loadCSV("../data/dazi-bev-ue.csv").then(function (rows) {
+    var data = rows.map(function (r) { return { k: r["Produttore"], v: R.num(r["Dazio compensativo (%)"]), t: r["Tipo"] }; });
+    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {};
+    R.dismissOutside(host, function () { tip.hide(); clear(); });
+    R.responsive(host, function (W, phase) { draw(W, phase); });
+    function draw(W, phase) {
+      var narrow = R.isNarrow(W), labW = narrow ? 118 : 190, row = narrow ? 30 : 34, bh = narrow ? 18 : 20;
+      var m = { top: 4, right: 8, bottom: 4, left: labW }, H = m.top + m.bottom + row * data.length, w = W - m.left - m.right;
+      var x = d3.scaleLinear().domain([0, 40]).range([0, w - 56]);
+      var hi = d3.max(data, function (d) { return d.v; });
+      d3.select(host).select("svg").remove();
+      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
+        .attr("aria-label", "Dazi compensativi Ue sulle auto elettriche cinesi: da " + f1(d3.min(data, function (d) { return d.v; })) + "% a " + f1(hi) + "%.");
+      svg.append("title").text("Dazi compensativi Ue sulle auto elettriche cinesi");
+      var g = svg.append("g").attr("transform", "translate(" + m.left + "," + m.top + ")");
+      g.append("g").selectAll("text").data(data).join("text").attr("class", "tick-label").attr("x", -10).attr("text-anchor", "end")
+        .attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em").text(function (d) { return narrow ? d.k.replace("Altri produttori cooperanti", "Altri cooperanti") : d.k; });
+      g.append("line").attr("class", "baseline").attr("x1", 0.5).attr("x2", 0.5).attr("y1", 0).attr("y2", row * data.length);
+      var bars = g.append("g").selectAll("path").data(data).join("path").attr("class", "mark")
+        .style("fill", function (d) { return d.v === hi ? "var(--red)" : "var(--blue)"; });
+      R.enter(bars, phase, function (s) { s.attr("d", function (d, i) { return R.barPathH(1, i * row + (row - bh) / 2, 0, bh, 2); }); },
+        function (s) { s.attr("d", function (d, i) { return R.barPathH(1, i * row + (row - bh) / 2, x(d.v), bh, 2); }); });
+      var vals = g.append("g").selectAll("text").data(data).join("text").attr("class", "val-label mark")
+        .attr("x", function (d) { return x(d.v) + 7; }).attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em")
+        .text(function (d) { return f1(d.v) + "%"; });
+      clear = function () { bars.classed("is-dimmed", false); vals.classed("is-dimmed", false); };
+      g.append("g").selectAll("rect").data(data).join("rect").attr("class", "hit").attr("x", -labW).attr("width", W)
+        .attr("y", function (d, i) { return i * row; }).attr("height", row)
+        .on("pointerenter pointerdown", function (ev, d) {
+          bars.classed("is-dimmed", function (q) { return q !== d; }); vals.classed("is-dimmed", function (q) { return q !== d; });
+          var i = data.indexOf(d);
+          tip.show(R.tipHTML({ title: d.k, value: f1(d.v) + "%", unit: "dazio compensativo", rows: [["Gruppo", d.t === "Cooperante" ? "cooperante" : "non cooperante"], ["Dazio totale (con il 10% ordinario)", f1(d.v + 10) + "%"]] }),
+            Math.min(x(d.v) + m.left + 50, W - 20), i * row + m.top);
+        })
+        .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
+      R.scheduleHeight();
+    }
+  }).catch(function (e) { R.fail("#chart", e); });
+})();
+</script>
+</body>
+</html>

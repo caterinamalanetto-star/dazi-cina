@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interscambio Italia-Cina 2026 – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .r-toggle { display: inline-flex; flex-wrap: wrap; gap: 0; margin: 4px 0 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+  .r-toggle button { font: 500 13px/1 var(--sans); color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .r-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .r-toggle button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tile text { font-family: var(--sans); pointer-events: none; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Le esportazioni italiane in Cina crescono, le importazioni oscillano</h1>
+    <p class="r-sub">Interscambio Italia-Cina, variazione percentuale rispetto allo stesso mese del 2025. Dati mensili Istat, gennaio-ottobre 2026.</p>
+  </header>
+  <div class="r-big" id="big" aria-hidden="true">
+    <span class="r-big__num" id="big-num">&nbsp;</span>
+    <span class="r-big__label" id="big-label"></span>
+  </div>
+  <figure class="r-chart" id="chart"></figure>
+  <p class="r-note">Mesi mancanti: nei comunicati Istat consultati non è indicata la variazione per la Cina per le importazioni di gennaio, le esportazioni di febbraio e entrambi i flussi di luglio. Le linee sono interrotte dove il dato manca. Dati provvisori.</p>
+  <footer class="r-foot">
+    <span>Fonte: Istat, comunicati «Commercio estero extra Ue», gennaio-ottobre 2026</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+<script>
+(function () {
+  var R = Radar, f1 = function (v) { return R.fmt(v, 1); }, sg = function (v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + f1(Math.abs(v)) + "%"; };
+  R.loadCSV("../data/italia-cina-2026.csv").then(function (rows) {
+    var data = rows.map(function (r) { var e = R.num(r["Esportazioni verso la Cina (var. % tendenziale)"]), i = R.num(r["Importazioni dalla Cina (var. % tendenziale)"]);
+      return { m: r["Mese"], e: isNaN(e) ? null : e, i: isNaN(i) ? null : i }; });
+    var last = data[data.length - 1];
+    d3.select("#big-num").text(sg(last.e));
+    d3.select("#big-label").text("le esportazioni italiane verso la Cina a ottobre 2026 rispetto a un anno prima. Le importazioni dalla Cina: " + sg(last.i));
+    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {};
+    R.dismissOutside(host, function () { tip.hide(); clear(); });
+    R.responsive(host, function (W, phase) { draw(W, phase); });
+    function draw(W, phase) {
+      var narrow = R.isNarrow(W), H = narrow ? 300 : 340, m = { top: 16, right: narrow ? 52 : 110, bottom: 26, left: 34 };
+      var w = W - m.left - m.right, h = H - m.top - m.bottom;
+      var x = d3.scalePoint().domain(data.map(function (d) { return d.m; })).range([0, w]);
+      var x0 = d3.min(data, function (d) { return Math.min(d.e == null ? 0 : d.e, d.i == null ? 0 : d.i); }), x1 = d3.max(data, function (d) { return Math.max(d.e || 0, d.i || 0); });
+      var y = d3.scaleLinear().domain([Math.floor(x0 / 10) * 10, Math.ceil(x1 / 10) * 10]).range([h, 0]);
+      d3.select(host).select("svg").remove();
+      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
+        .attr("aria-label", "Variazione tendenziale mensile dell'interscambio Italia-Cina nel 2026. A ottobre le esportazioni sono " + sg(last.e) + " e le importazioni " + sg(last.i) + ".");
+      svg.append("title").text("Interscambio Italia-Cina, variazione tendenziale 2026");
+      var g = svg.append("g").attr("transform", "translate(" + m.left + "," + m.top + ")");
+      g.append("g").selectAll("line").data(y.ticks(5)).join("line").attr("class", "grid").attr("x1", 0).attr("x2", w).attr("y1", y).attr("y2", y);
+      g.append("g").selectAll("text").data(y.ticks(5)).join("text").attr("class", "tick-label").attr("x", -6).attr("text-anchor", "end").attr("y", y).attr("dy", "0.35em").text(function (d) { return d; });
+      g.append("line").attr("class", "baseline").attr("x1", 0).attr("x2", w).attr("y1", y(0)).attr("y2", y(0));
+      g.append("g").selectAll("text").data(data).join("text").attr("class", "tick-label").attr("x", function (d) { return x(d.m); }).attr("y", h + 18).attr("text-anchor", "middle").text(function (d) { return d.m; });
+      function series(k, col, name) {
+        var line = d3.line().defined(function (d) { return d[k] != null; }).curve(d3.curveMonotoneX).x(function (d) { return x(d.m); }).y(function (d) { return y(d[k]); });
+        var p = g.append("path").datum(data).attr("class", "mark").style("fill", "none").style("stroke", col).style("stroke-width", 2.5).attr("d", line);
+        var pts = g.append("g").selectAll("circle").data(data.filter(function (d) { return d[k] != null; })).join("circle").attr("class", "mark")
+          .attr("cx", function (d) { return x(d.m); }).attr("cy", function (d) { return y(d[k]); }).attr("r", 3.5).style("fill", col).style("stroke", "var(--bg)").style("stroke-width", 1.5);
+        var L = data.filter(function (d) { return d[k] != null; }).slice(-1)[0];
+        g.append("text").attr("class", "annot").attr("x", x(L.m) + 8).attr("y", y(L[k])).attr("dy", "0.35em").style("fill", col).style("font-weight", 600).style("font-size", "12px").text(narrow ? "" : name);
+        R.enter(p, phase, function (s) { s.style("opacity", 0); }, function (s) { s.transition().duration(700).style("opacity", 1); });
+        return pts;
+      }
+      var pe = series("e", "var(--blue)", "Export"), pi = series("i", "var(--red)", "Import");
+      var peak = data.filter(function (d) { return d.e === 36; })[0];
+      var a = g.append("g").attr("class", "annot");
+      a.append("line").attr("x1", x(peak.m)).attr("x2", x(peak.m)).attr("y1", y(peak.e) - 4).attr("y2", y(peak.e) - 14).style("stroke", "var(--ink-2)").style("stroke-width", 0.75);
+      a.append("text").attr("x", x(peak.m)).attr("y", y(peak.e) - 18).attr("text-anchor", "middle").style("font-size", "12px").style("fill", "var(--ink)").style("paint-order", "stroke").style("stroke", "var(--bg)").style("stroke-width", 3).text("Aprile " + sg(peak.e));
+      if (narrow) { var lg = svg.append("g").attr("transform", "translate(" + m.left + ",10)"); lg.append("text").style("font-size", "12px").style("fill", "var(--blue)").style("font-weight", 600).text("Export"); lg.append("text").attr("x", 52).style("font-size", "12px").style("fill", "var(--red)").style("font-weight", 600).text("Import"); }
+      clear = function () {};
+      var step = w / (data.length - 1);
+      g.append("g").selectAll("rect").data(data).join("rect").attr("class", "hit").attr("x", function (d) { return x(d.m) - step / 2; }).attr("width", step).attr("y", 0).attr("height", h)
+        .on("pointerenter pointerdown", function (ev, d) {
+          tip.show(R.tipHTML({ title: d.m + " 2026", rows: [["Export verso la Cina", d.e == null ? "non rilevato qui" : sg(d.e)], ["Import dalla Cina", d.i == null ? "non rilevato qui" : sg(d.i)]], note: "Variazione rispetto allo stesso mese del 2025." }),
+            Math.min(x(d.m) + m.left + 12, W - 20), m.top + 30);
+        })
+        .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); } });
+      R.scheduleHeight();
+    }
+  }).catch(function (e) { R.fail("#chart", e); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dazi Usa proposti su 14 economie – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .r-toggle { display: inline-flex; flex-wrap: wrap; gap: 0; margin: 4px 0 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+  .r-toggle button { font: 500 13px/1 var(--sans); color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .r-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .r-toggle button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tile text { font-family: var(--sans); pointer-events: none; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Washington propone dazi fino al 40%: l'Europa a 15, la Cina a 20</h1>
+    <p class="r-sub">Dazi aggiuntivi proposti dagli Stati Uniti il 25 novembre 2026 nelle indagini Section 301 sulla «sovracapacità strutturale», per economia. Valori massimi in %, proposte aperte a commenti fino al 5 gennaio 2027.</p>
+  </header>
+
+  <div class="r-big" id="big" aria-hidden="true">
+    <span class="r-big__num" id="big-num">&nbsp;</span>
+    <span class="r-big__label" id="big-label"></span>
+  </div>
+
+  <figure class="r-chart" id="chart">
+    <div class="r-toggle" role="group" aria-label="Scegli lo scenario">
+      <button type="button" data-k="base" aria-pressed="true">Proposta base</button>
+      <button type="button" data-k="fb" aria-pressed="false">Se le consultazioni falliscono</button>
+    </div>
+  </figure>
+  <p class="r-note" id="nota"></p>
+
+  <footer class="r-foot">
+    <span>Fonte: USTR, avvisi di determinazione e proposta di azione, 25 novembre 2026 (docket USTR-2026-0741)</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var R = Radar, fmt = R.fmt, f0 = function (v) { return fmt(v, 0); };
+  var NOTE = {
+    base: "Tessere disposte in modo approssimato secondo la geografia, non in scala. Il valore indica la proposta base ed è «al netto» dei dazi già in vigore (Mfn e Section 301), quindi non si somma. Il Messico e la Norvegia sono stati esaminati ma senza misure proposte.",
+    fb: "Aliquota più alta che gli Usa valutano se giudicano insoddisfacenti consultazioni e impegni. Per India, Vietnam e Singapore l'avviso non indica un'aliquota di ripiego: la tessera mostra la proposta base (in grigio più chiaro, non confrontabile). Nel caso dell'India e del Vietnam esiste una proposta più bassa se si firma un accordo commerciale."
+  };
+  R.loadCSV("../data/ustr-dazi-proposti-2026-11-25.csv").then(function (rows) {
+    var data = rows.map(function (r) {
+      var base = R.num(r["Proposta base (%)"]), fbv = R.num(r["Se le consultazioni falliscono (%)"]), deal = R.num(r["Con accordo (%)"]);
+      return { k: r["Economia"], s: r["Sigla"], c: +r["Col"], r: +r["Riga"], base: base, deal: isNaN(deal) ? null : deal,
+        fb: isNaN(fbv) ? null : fbv, nota: r["Nota"] };
+    });
+    var cn = data.filter(function (d) { return d.s === "CN"; })[0], eu = data.filter(function (d) { return d.s === "UE"; })[0];
+    var bigNum = d3.select("#big-num");
+    d3.select("#big-label").text("è il massimo che Washington valuta per la Cina se il dialogo fallisce; la proposta base è " + f0(cn.base) + "%. Per l'Ue " + f0(eu.base) + "% (20% nel caso peggiore)");
+    if (R.reduced) bigNum.text(f0(cn.fb) + "%");
+    else { bigNum.text("0%"); R.onFirstView(document.getElementById("big"), function () { R.countUp(bigNum, cn.fb, function (v) { return f0(v) + "%"; }, "play"); }); }
+
+    var key = "base", host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {}, lastW = 0;
+    R.dismissOutside(host, function () { tip.hide(); clear(); });
+    d3.selectAll(".r-toggle button").on("click", function () {
+      key = this.getAttribute("data-k");
+      d3.selectAll(".r-toggle button").attr("aria-pressed", function () { return this.getAttribute("data-k") === key ? "true" : "false"; });
+      tip.hide(); draw(lastW, "static");
+    });
+    R.responsive(host, function (W, phase) { lastW = W; draw(W, phase); });
+
+    function draw(W, phase) {
+      var narrow = R.isNarrow(W);
+      d3.select("#nota").text(NOTE[key]);
+      var cols = 7, rowsN = 5, gap = narrow ? 4 : 6;
+      var size = Math.floor((W - gap * (cols - 1)) / cols);
+      var H = rowsN * size + (rowsN - 1) * gap;
+      var val = function (d) { return key === "fb" ? (d.fb == null ? d.base : d.fb) : d.base; };
+      var nd = function (d) { return key === "fb" && d.fb == null; };
+      var colr = d3.scaleThreshold().domain([16, 19, 21, 26]).range(["var(--blue-5)", "var(--blue-4)", "var(--blue-3)", "var(--blue-2)", "var(--blue-1)"]);
+      var fill = function (d) { return val(d) >= 35 ? "var(--red)" : colr(val(d)); };
+      var light = function (d) { var v = val(d); return v < 19 || nd(d); };
+
+      d3.select(host).select("svg").remove();
+      var top = data.slice().sort(function (a, b) { return val(b) - val(a); })[0];
+      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
+        .attr("aria-label", "Cartogramma a tessere dei dazi Usa proposti su 14 economie. " + (key === "fb" ? "Scenario di ripiego. " : "Proposta base. ") +
+          "Il valore più alto è " + top.k + " con " + f0(val(top)) + "%. Unione europea: " + f0(val(eu)) + "%; Cina: " + f0(val(cn)) + "%.");
+      svg.append("title").text("Dazi Usa proposti il 25 novembre 2026");
+      var xs = function (c) { return c * (size + gap); }, ys = function (r) { return r * (size + gap); };
+      var g = svg.append("g");
+      var tiles = g.selectAll("g.tile").data(data).join("g").attr("class", "tile mark")
+        .attr("transform", function (d) { return "translate(" + xs(d.c) + "," + ys(d.r) + ")"; });
+      tiles.append("rect").attr("width", size).attr("height", size).attr("rx", 4)
+        .style("fill", function (d) { return nd(d) ? "var(--grey-5)" : fill(d); })
+        .style("stroke", function (d) { return d === cn ? "var(--ink)" : "none"; }).style("stroke-width", 1.5);
+      tiles.append("text").attr("x", size / 2).attr("y", size * 0.40).attr("text-anchor", "middle")
+        .style("font-size", (narrow ? 10 : 12) + "px").style("font-weight", 600)
+        .style("fill", function (d) { return light(d) ? "var(--ink)" : "#fff"; })
+        .text(function (d) { return d.s; });
+      var vt = tiles.append("text").attr("x", size / 2).attr("y", size * 0.76).attr("text-anchor", "middle")
+        .style("font-size", (narrow ? 14 : 20) + "px").style("font-weight", 700)
+        .style("fill", function (d) { return light(d) ? "var(--ink)" : "#fff"; }).style("font-variant-numeric", "tabular-nums");
+      vt.each(function (d) { d3.select(this).text(f0(val(d)) + "%"); });
+      R.enter(tiles, phase, function (s) { s.style("opacity", 0); },
+        function (s) { s.transition().duration(600).delay(function (d, i) { return i * 35; }).style("opacity", 1); });
+
+      // legenda: etichetta diretta per la Cina
+      var lab = g.append("text").attr("class", "annot").attr("x", xs(1) + 2).attr("y", ys(3) + 14)
+        .style("font-size", "12px").style("fill", "var(--ink-2)");
+      lab.append("tspan").attr("x", xs(0)).attr("dy", 0).text("Riquadro: Cina.");
+      lab.append("tspan").attr("x", xs(0)).attr("dy", 15).text("Rosso: oltre il 30%.");
+
+      clear = function () { tiles.classed("is-dimmed", false); };
+      g.selectAll("rect.hit").data(data).join("rect").attr("class", "hit")
+        .attr("x", function (d) { return xs(d.c); }).attr("y", function (d) { return ys(d.r); }).attr("width", size).attr("height", size)
+        .on("pointerenter pointerdown", function (ev, d) {
+          tiles.classed("is-dimmed", function (q) { return q !== d; });
+          var rowsT = [["Proposta base", f0(d.base) + "%"]];
+          if (d.deal != null) rowsT.push(["Con accordo commerciale", f0(d.deal) + "%"]);
+          rowsT.push(["Se le consultazioni falliscono", d.fb == null ? "non indicato" : f0(d.fb) + "%"]);
+          tip.show(R.tipHTML({ title: d.k, value: f0(val(d)) + "%", unit: key === "fb" ? "scenario di ripiego" : "proposta base", rows: rowsT, note: d.nota }),
+            Math.min(xs(d.c) + size, W - 20), ys(d.r) + size / 2);
+        })
+        .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
+      R.scheduleHeight();
+    }
+  }).catch(function (e) { R.fail("#chart", e); });
+})();
+</script>
+</body>
+</html>
