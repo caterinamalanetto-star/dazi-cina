@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ue e Cina, il commercio nel terzo trimestre 2026 – Radar QN</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,700&display=swap">
+<link rel="stylesheet" href="../assets/radar.css">
+<style>
+  .r-toggle { display: inline-flex; flex-wrap: wrap; gap: 0; margin: 4px 0 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px; }
+  .r-toggle button { font: 500 13px/1 var(--sans); color: var(--ink-2); background: none; border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer; }
+  .r-toggle button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .r-toggle button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+  .tile text { font-family: var(--sans); pointer-events: none; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="../assets/radar.js"></script>
+</head>
+<body>
+<main class="radar">
+  <header>
+    <h1 class="r-title">Ue-Cina, 163 miliardi in entrata e 49 in uscita in tre mesi</h1>
+    <p class="r-sub">Commercio di beni dell'Unione europea con i principali partner, terzo trimestre 2026. Miliardi di euro e variazione sul terzo trimestre 2025.</p>
+  </header>
+  <div class="r-big" id="big" aria-hidden="true">
+    <span class="r-big__num" id="big-num">&nbsp;</span>
+    <span class="r-big__label" id="big-label"></span>
+  </div>
+  <figure class="r-chart" id="chart"></figure>
+  <p class="r-note">Le cinque principali origini e destinazioni dei beni extra Ue. Il saldo con la Cina è calcolato da Radar come differenza tra i due valori in tabella; Eurostat riporta i valori delle importazioni e delle esportazioni.</p>
+  <footer class="r-foot">
+    <span>Fonte: Eurostat, dataset ext_st_eu27_2020sitc, notizia del 26 novembre 2026</span>
+    <span>Elaborazione Radar – QN</span>
+  </footer>
+</main>
+<script>
+(function () {
+  var R = Radar, f1 = function (v) { return R.fmt(v, 1); }, sg = function (v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + f1(Math.abs(v)) + "%"; };
+  R.loadCSV("../data/eurostat-q3-2026-partner.csv").then(function (rows) {
+    var all = rows.map(function (r) { return { k: r["Partner"], dir: r["Direzione"], v: R.num(r["Miliardi di euro"]), q: R.num(r["Quota (%)"]), c: R.num(r["Var. su Q3 2025 (%)"]) }; });
+    var imp = all.filter(function (d) { return d.dir === "Importazioni"; }), exp = all.filter(function (d) { return d.dir === "Esportazioni"; });
+    var cin = imp.filter(function (d) { return d.k === "Cina"; })[0], cex = exp.filter(function (d) { return d.k === "Cina"; })[0];
+    var gap = cin.v - cex.v;
+    var bn = d3.select("#big-num");
+    d3.select("#big-label").text("miliardi di euro: la differenza tra ciò che l'Ue ha importato dalla Cina (" + f1(cin.v) + ") e ciò che le ha venduto (" + f1(cex.v) + ") nel terzo trimestre 2026");
+    if (R.reduced) bn.text(f1(gap)); else { bn.text("0"); R.onFirstView(document.getElementById("big"), function () { R.countUp(bn, gap, f1, "play"); }); }
+    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {};
+    R.dismissOutside(host, function () { tip.hide(); clear(); });
+    R.responsive(host, function (W, phase) { draw(W, phase); });
+    function draw(W, phase) {
+      var narrow = R.isNarrow(W), labW = narrow ? 92 : 120, row = narrow ? 28 : 30, bh = narrow ? 17 : 19, head = 30;
+      var groups = [{ t: "Da dove arrivano i beni (importazioni)", d: imp }, { t: "Dove vanno i beni (esportazioni)", d: exp }];
+      var H = groups.length * (head + row * 5 + 12);
+      var x = d3.scaleLinear().domain([0, 170]).range([0, W - labW - (narrow ? 84 : 120)]);
+      d3.select(host).select("svg").remove();
+      var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
+        .attr("aria-label", "Commercio Ue nel terzo trimestre 2026. Importazioni dalla Cina " + f1(cin.v) + " miliardi, esportazioni verso la Cina " + f1(cex.v) + " miliardi.");
+      svg.append("title").text("Commercio Ue con i principali partner, Q3 2026");
+      var all2 = [];
+      groups.forEach(function (gr, gi) {
+        var y0 = gi * (head + row * 5 + 12);
+        svg.append("text").attr("class", "tick-label").attr("x", 0).attr("y", y0 + 14).style("font-weight", 600).style("fill", "var(--ink)").text(gr.t);
+        var g = svg.append("g").attr("transform", "translate(" + labW + "," + (y0 + head) + ")");
+        g.append("g").selectAll("text").data(gr.d).join("text").attr("class", "tick-label").attr("x", -10).attr("text-anchor", "end").attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em")
+          .style("fill", function (d) { return d.k === "Cina" ? "var(--red)" : "var(--ink)"; }).style("font-weight", function (d) { return d.k === "Cina" ? 600 : null; }).text(function (d) { return d.k; });
+        g.append("line").attr("class", "baseline").attr("x1", 0.5).attr("x2", 0.5).attr("y1", 0).attr("y2", row * 5);
+        var bars = g.append("g").selectAll("path").data(gr.d).join("path").attr("class", "mark").style("fill", function (d) { return d.k === "Cina" ? "var(--red)" : "var(--grey)"; });
+        R.enter(bars, phase, function (s) { s.attr("d", function (d, i) { return R.barPathH(1, i * row + (row - bh) / 2, 0, bh, 2); }); },
+          function (s) { s.attr("d", function (d, i) { return R.barPathH(1, i * row + (row - bh) / 2, x(d.v), bh, 2); }); });
+        var vals = g.append("g").selectAll("text").data(gr.d).join("text").attr("class", "val-label mark").attr("x", function (d) { return x(d.v) + 7; }).attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em")
+          .text(function (d) { return f1(d.v) + (narrow ? "" : "  " + sg(d.c)); });
+        all2.push({ bars: bars, vals: vals });
+        g.append("g").selectAll("rect").data(gr.d).join("rect").attr("class", "hit").attr("x", -labW).attr("width", W).attr("y", function (d, i) { return i * row; }).attr("height", row)
+          .on("pointerenter pointerdown", function (ev, d) {
+            all2.forEach(function (a) { a.bars.classed("is-dimmed", function (q) { return q !== d; }); a.vals.classed("is-dimmed", function (q) { return q !== d; }); });
+            tip.show(R.tipHTML({ title: d.k, value: f1(d.v), unit: "miliardi di euro", rows: [["Quota sul totale extra Ue", f1(d.q) + "%"], ["Rispetto al Q3 2025", sg(d.c)]] }),
+              Math.min(x(d.v) + labW + 60, W - 20), y0 + head + gr.d.indexOf(d) * row);
+          }).on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); all2.forEach(function (a) { a.bars.classed("is-dimmed", false); a.vals.classed("is-dimmed", false); }); } });
+      });
+      clear = function () { all2.forEach(function (a) { a.bars.classed("is-dimmed", false); a.vals.classed("is-dimmed", false); }); };
+      R.scheduleHeight();
+    }
+  }).catch(function (e) { R.fail("#chart", e); });
+})();
+</script>
+</body>
+</html>

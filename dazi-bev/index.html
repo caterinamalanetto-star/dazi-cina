@@ -22,12 +22,12 @@
 <main class="radar">
   <header>
     <h1 class="r-title">Auto elettriche cinesi, dal 7,8% di Tesla al 35,3% di Saic</h1>
-    <p class="r-sub">Dazi compensativi definitivi dell'Unione europea sulle auto elettriche a batteria importate dalla Cina, per produttore. Valori in %, in vigore dal 30 ottobre 2024 per cinque anni.</p>
+    <p class="r-sub">Dazi compensativi definitivi dell'Unione europea sulle auto elettriche a batteria importate dalla Cina, per produttore. Valori in %, in vigore dal 30 ottobre 2024.</p>
   </header>
   <figure class="r-chart" id="chart"></figure>
-  <p class="r-note">Dazi aggiuntivi al dazio ordinario del 10% applicato alle auto. Alcuni produttori hanno proposto impegni sui prezzi, valutati caso per caso dalla Commissione (per esempio la decisione 2026/328 su Volkswagen Anhui): per queste vetture il dazio può non essere applicato.</p>
+  <p class="r-note">Aliquote sul prezzo netto franco frontiera Ue, dazio non corrisposto. Un produttore può offrire un impegno sui prezzi: la decisione 2026/328 del 9 febbraio 2026 ne ha accettato uno di Volkswagen Anhui, limitato al modello Cupra Tavascan, con prezzo minimo e contingente annuo.</p>
   <footer class="r-foot">
-    <span>Fonte: Commissione europea, regolamento di esecuzione (Ue) 2024/2754; Access2Markets</span>
+    <span>Fonte: Commissione europea, regolamento di esecuzione (Ue) 2024/2754 e decisione di esecuzione (Ue) 2026/328</span>
     <span>Elaborazione Radar – QN</span>
   </footer>
 </main>
@@ -50,7 +50,7 @@
       svg.append("title").text("Dazi compensativi Ue sulle auto elettriche cinesi");
       var g = svg.append("g").attr("transform", "translate(" + m.left + "," + m.top + ")");
       g.append("g").selectAll("text").data(data).join("text").attr("class", "tick-label").attr("x", -10).attr("text-anchor", "end")
-        .attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em").text(function (d) { return narrow ? d.k.replace("Altri produttori cooperanti", "Altri cooperanti") : d.k; });
+        .attr("y", function (d, i) { return i * row + row / 2; }).attr("dy", "0.35em").text(function (d) { return narrow ? d.k.replace("Altre imprese cooperanti", "Altre cooperanti").replace("Tutte le altre società", "Tutte le altre") : d.k; });
       g.append("line").attr("class", "baseline").attr("x1", 0.5).attr("x2", 0.5).attr("y1", 0).attr("y2", row * data.length);
       var bars = g.append("g").selectAll("path").data(data).join("path").attr("class", "mark")
         .style("fill", function (d) { return d.v === hi ? "var(--red)" : "var(--blue)"; });
@@ -65,7 +65,7 @@
         .on("pointerenter pointerdown", function (ev, d) {
           bars.classed("is-dimmed", function (q) { return q !== d; }); vals.classed("is-dimmed", function (q) { return q !== d; });
           var i = data.indexOf(d);
-          tip.show(R.tipHTML({ title: d.k, value: f1(d.v) + "%", unit: "dazio compensativo", rows: [["Gruppo", d.t === "Cooperante" ? "cooperante" : "non cooperante"], ["Dazio totale (con il 10% ordinario)", f1(d.v + 10) + "%"]] }),
+          tip.show(R.tipHTML({ title: d.k, value: f1(d.v) + "%", unit: "dazio compensativo", rows: [["Posizione nell'inchiesta", d.t]] }),
             Math.min(x(d.v) + m.left + 50, W - 20), i * row + m.top);
         })
         .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });

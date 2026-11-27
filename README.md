@@ -1,19 +1,19 @@
 # Dazi e Cina – dataviz Radar QN
 
-Dataviz interattive (HTML + D3 v7) nello stile Radar.
+Quattro dataviz interattive (HTML + D3 v7) nello stile Radar. Ogni numero viene da documenti istituzionali allegati.
 
 | Pagina | Contenuto | Dati |
 |---|---|---|
 | `mappa-usa/` | Dazi Usa proposti il 25 novembre 2026 su 14 economie (cartogramma a tessere) | `data/ustr-dazi-proposti-2026-11-25.csv` |
 | `dazi-bev/` | Dazi compensativi Ue sulle auto elettriche cinesi | `data/dazi-bev-ue.csv` |
-| `pacchi/` | Calendario delle misure sui piccoli pacchi | `data/pacchi-calendario.csv` |
-| `italia-cina/` | Interscambio Italia-Cina, variazione tendenziale 2026 | `data/italia-cina-2026.csv` |
+| `pacchi/` | Calendario delle misure sui piccoli pacchi (Ue e Usa) | `data/pacchi-calendario.csv` |
+| `ue-cina/` | Commercio Ue con i principali partner, terzo trimestre 2026 | `data/eurostat-q3-2026-partner.csv` |
 
 ## Fonti
-USTR (avvisi del 25 novembre 2026, docket USTR-2026-0741); Commissione europea (reg. 2024/2754); Consiglio Ue (reg. 2026/382, 2026/1200); Istat (commercio estero extra Ue, gen–ott 2026).
+Ustr (comunicato 25 novembre 2026; avvisi Ue e Cina); Commissione europea (reg. 2024/2754, decisione 2026/328, reg. 2026/1200, reg. delegato 2026/2152); Consiglio Ue (reg. 2026/382); Cbp (91 FR 37789); Eurostat (Q3 2026); Il Sole 24 Ore (1 novembre 2026, per l'abrogazione del contributo italiano e il commento al regolamento).
 
 ## Limiti
-- Mancano dati ufficiali sulle importazioni di auto per alimentazione (Eurostat/Coeweb non utilizzati).
+- Mancano dati ufficiali sulle importazioni di auto per alimentazione.
 - Le tessere della mappa non sono in scala geografica.
-- Aliquote Usa: proposte aperte a commenti fino al 5 gennaio 2027; per India, Vietnam e Singapore l'aliquota di ripiego non è indicata (Singapore non verificata sul testo).
-- Istat: mancano alcuni mesi per la Cina (vedi nota nel grafico); data del contributo italiano di 2 euro da confermare.
+- Il saldo Ue-Cina nel grafico è calcolato da Radar (importazioni meno esportazioni).
+- Per le economie diverse da Ue e Cina la mappa riporta solo la proposta base e l'eventuale aliquota con accordo (comunicato Ustr).

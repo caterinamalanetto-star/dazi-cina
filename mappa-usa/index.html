@@ -31,10 +31,6 @@
   </div>
 
   <figure class="r-chart" id="chart">
-    <div class="r-toggle" role="group" aria-label="Scegli lo scenario">
-      <button type="button" data-k="base" aria-pressed="true">Proposta base</button>
-      <button type="button" data-k="fb" aria-pressed="false">Se le consultazioni falliscono</button>
-    </div>
   </figure>
   <p class="r-note" id="nota"></p>
 
@@ -47,10 +43,7 @@
 <script>
 (function () {
   var R = Radar, fmt = R.fmt, f0 = function (v) { return fmt(v, 0); };
-  var NOTE = {
-    base: "Tessere disposte in modo approssimato secondo la geografia, non in scala. Il valore indica la proposta base ed è «al netto» dei dazi già in vigore (Mfn e Section 301), quindi non si somma. Il Messico e la Norvegia sono stati esaminati ma senza misure proposte.",
-    fb: "Aliquota più alta che gli Usa valutano se giudicano insoddisfacenti consultazioni e impegni. Per India, Vietnam e Singapore l'avviso non indica un'aliquota di ripiego: la tessera mostra la proposta base (in grigio più chiaro, non confrontabile). Nel caso dell'India e del Vietnam esiste una proposta più bassa se si firma un accordo commerciale."
-  };
+  var NOTE = "Tessere disposte in modo approssimato secondo la geografia, non in scala. Il valore è la proposta base, «al netto» dei dazi già in vigore (Section 301 e, per Ue, Giappone, Corea, Svizzera e Taiwan, anche Mfn): non si somma. Per Ue e Cina l'avviso indica anche un tetto più alto se le consultazioni risultano insoddisfacenti (20% e 40%). Per Messico e Norvegia non sono state prese determinazioni.";
   R.loadCSV("../data/ustr-dazi-proposti-2026-11-25.csv").then(function (rows) {
     var data = rows.map(function (r) {
       var base = R.num(r["Proposta base (%)"]), fbv = R.num(r["Se le consultazioni falliscono (%)"]), deal = R.num(r["Con accordo (%)"]);
@@ -63,23 +56,18 @@
     if (R.reduced) bigNum.text(f0(cn.fb) + "%");
     else { bigNum.text("0%"); R.onFirstView(document.getElementById("big"), function () { R.countUp(bigNum, cn.fb, function (v) { return f0(v) + "%"; }, "play"); }); }
 
-    var key = "base", host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {}, lastW = 0;
+    var host = document.getElementById("chart"), tip = R.tooltip(host), clear = function () {}, lastW = 0;
     R.dismissOutside(host, function () { tip.hide(); clear(); });
-    d3.selectAll(".r-toggle button").on("click", function () {
-      key = this.getAttribute("data-k");
-      d3.selectAll(".r-toggle button").attr("aria-pressed", function () { return this.getAttribute("data-k") === key ? "true" : "false"; });
-      tip.hide(); draw(lastW, "static");
-    });
     R.responsive(host, function (W, phase) { lastW = W; draw(W, phase); });
 
     function draw(W, phase) {
       var narrow = R.isNarrow(W);
-      d3.select("#nota").text(NOTE[key]);
+      d3.select("#nota").text(NOTE);
       var cols = 7, rowsN = 5, gap = narrow ? 4 : 6;
       var size = Math.floor((W - gap * (cols - 1)) / cols);
       var H = rowsN * size + (rowsN - 1) * gap;
-      var val = function (d) { return key === "fb" ? (d.fb == null ? d.base : d.fb) : d.base; };
-      var nd = function (d) { return key === "fb" && d.fb == null; };
+      var val = function (d) { return d.base; };
+      var nd = function () { return false; };
       var colr = d3.scaleThreshold().domain([16, 19, 21, 26]).range(["var(--blue-5)", "var(--blue-4)", "var(--blue-3)", "var(--blue-2)", "var(--blue-1)"]);
       var fill = function (d) { return val(d) >= 35 ? "var(--red)" : colr(val(d)); };
       var light = function (d) { var v = val(d); return v < 19 || nd(d); };
@@ -87,7 +75,7 @@
       d3.select(host).select("svg").remove();
       var top = data.slice().sort(function (a, b) { return val(b) - val(a); })[0];
       var svg = d3.select(host).insert("svg", ".r-tip").attr("width", W).attr("height", H).attr("role", "img")
-        .attr("aria-label", "Cartogramma a tessere dei dazi Usa proposti su 14 economie. " + (key === "fb" ? "Scenario di ripiego. " : "Proposta base. ") +
+        .attr("aria-label", "Cartogramma a tessere dei dazi Usa proposti su 14 economie. " + "Proposta base. " +
           "Il valore più alto è " + top.k + " con " + f0(val(top)) + "%. Unione europea: " + f0(val(eu)) + "%; Cina: " + f0(val(cn)) + "%.");
       svg.append("title").text("Dazi Usa proposti il 25 novembre 2026");
       var xs = function (c) { return c * (size + gap); }, ys = function (r) { return r * (size + gap); };
@@ -121,8 +109,8 @@
           tiles.classed("is-dimmed", function (q) { return q !== d; });
           var rowsT = [["Proposta base", f0(d.base) + "%"]];
           if (d.deal != null) rowsT.push(["Con accordo commerciale", f0(d.deal) + "%"]);
-          rowsT.push(["Se le consultazioni falliscono", d.fb == null ? "non indicato" : f0(d.fb) + "%"]);
-          tip.show(R.tipHTML({ title: d.k, value: f0(val(d)) + "%", unit: key === "fb" ? "scenario di ripiego" : "proposta base", rows: rowsT, note: d.nota }),
+          if (d.fb != null) rowsT.push(["Se le consultazioni falliscono", f0(d.fb) + "%"]);
+          tip.show(R.tipHTML({ title: d.k, value: f0(val(d)) + "%", unit: "proposta base", rows: rowsT, note: d.nota }),
             Math.min(xs(d.c) + size, W - 20), ys(d.r) + size / 2);
         })
         .on("pointerleave", function (ev) { if (ev.pointerType === "mouse") { tip.hide(); clear(); } });
